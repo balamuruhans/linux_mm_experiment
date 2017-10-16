@@ -15,7 +15,7 @@
 size_t MEM_SIZE = 16777216;
 
 /* Pressure percentage */
-float MEM_PRESSURE = 0.99;
+float MEM_PRESSURE = 0.95;
 
 bool RELEASE_FLAG = true;
 bool FLAG = false;

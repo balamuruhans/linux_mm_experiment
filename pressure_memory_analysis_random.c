@@ -5,16 +5,16 @@
 
 #include "event_apis.h"
 
-// Normal page size in Power8
+/* Normal page size in Power8 */
 #define PAGE_SIZE 65536
 
-// Huge page size in Power8
+/* Huge page size in Power8 */
 #define HPAGE_SIZE 16777216
 
-// 16MB memory size
+/* 16MB memory size */
 size_t MEM_SIZE = 16777216;
 
-// Pressure percentage
+/* Pressure percentage */
 float MEM_PRESSURE = 0.99;
 
 bool RELEASE_FLAG = true;
@@ -49,32 +49,31 @@ void *memory_pressure(void *memory_usage)
 {
 	char *paddr;
 	size_t mem_size;
+	int random_num;
 	float *mem_percent = (float *)memory_usage;
 	mem_size = (unsigned long) (*mem_percent * get_total_mem_bytes());
 	printf("Allocating %f percent of memory: %zu in thread\n",
                MEM_PRESSURE*100, mem_size);
 	paddr = mmap(NULL, mem_size, PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, 0, 0);
-	if (paddr != MAP_FAILED)
-	{
-		printf("Allocated successfully ~> %zu from %p to %p\n", mem_size, paddr, paddr);
-	}
-	else
+	if (paddr == MAP_FAILED)
 	{
 		printf("Allocation of %zu failed using normal page size\n", mem_size);
 		exit(1);
 	}
+	printf("Allocated successfully ~> %zu from %p to %p\n", mem_size, paddr, paddr);
 	printf("Touching %f percent of allocated memory in thread\n",
                MEM_PRESSURE*100);
 	memset(paddr, 1, mem_size);
 	FLAG = true;
-	// to have constant memory pressure
+	/* to have constant memory pressure */
 	printf("Touching memory with offset 64 continuously in thread\n");
 	while(RELEASE_FLAG)
 	{
-	        // Touching the memory randomly
+	        /* Touching the memory randomly */
         	for(int i=0; i<mem_size; i+=PAGE_SIZE)
 		{
-                	paddr[i+(PAGE_SIZE/2)] = 1;
+			random_num = rand() % PAGE_SIZE;
+			paddr[i+random_num] = 1;
         	}
 	}
 	printf("Exiting the memory pressure thread\n");
@@ -90,6 +89,7 @@ void *memory_pressure(void *memory_usage)
 int main()
 {
 	char *addr;
+	int random_num;
 	pthread_t stress_thread;
 	if (pthread_create(&stress_thread, NULL, memory_pressure, &MEM_PRESSURE))
 	{
@@ -100,81 +100,74 @@ int main()
 	{
 		if(FLAG)
 		{
-			// Normal page performance under pressure
+			/* Normal page performance under pressure */
 			printf("Performing test with Normal page\n");
 			setup_events();
 			open_events();
 			addr = mmap(NULL, MEM_SIZE, PROT_WRITE, MAP_ANONYMOUS|MAP_SHARED, 0, 0);
-			if (addr != MAP_FAILED)
-			{
-				printf("Allocated successfully ~> %zu from %p to %p\n", MEM_SIZE, addr, addr);
-			}
-			else
+			if (addr == MAP_FAILED)
 			{
 				printf("Allocation of %zu failed using normal page size\n", MEM_SIZE);
 				exit(1);
 			}
+			printf("Allocated successfully ~> %zu from %p to %p\n", MEM_SIZE, addr, addr);
 			prepare_events();
-			// Touching the memory randomly
+			/* Touching the memory randomly */
 			for(int i=0; i<MEM_SIZE; i+=PAGE_SIZE)
 			{
-				addr[i+(PAGE_SIZE/2)] = 1;
+				random_num = rand() % PAGE_SIZE;
+				addr[i+random_num] = 1;
 			}
 			display_events();
 			close_events();
 			printf("Touched normal page allocated memory continuously using memset\n");
 
-			// Huge page performance under pressure
+			/* Huge page performance under pressure */
 			printf("Performing test with Huge page\n");
 			setup_events();
 			open_events();
 			addr = mmap(NULL, MEM_SIZE, PROT_WRITE, MAP_HUGETLB|MAP_ANONYMOUS|MAP_SHARED, 0, 0);
-			if (addr != MAP_FAILED) {
-				printf("Allocated successfully ~> %zu from %p to %p\n", MEM_SIZE, addr, addr);
-			}
-			else {
+			if (addr == MAP_FAILED)
+			{
 				printf("Allocation of %zu failed using normal page size\n", MEM_SIZE);
 				exit(1);
 			}
+			printf("Allocated successfully ~> %zu from %p to %p\n", MEM_SIZE, addr, addr);
 			prepare_events();
-			// Touching the memory randomly
+			/* Touching the memory randomly */
 			for(int i=0; i<MEM_SIZE; i+=HPAGE_SIZE)
 			{
-				addr[i+(HPAGE_SIZE/2)] = 1;
+				random_num = rand() % HPAGE_SIZE;
+				addr[i+random_num] = 1;
 			}
 			display_events();
 			close_events();
 			printf("Touched it Hugepage allocated memory continuously using memset\n");
 
-			// Transparent huge page performance under pressure
+			/* Transparent huge page performance under pressure */
 			printf("Performing test with Transparent Huge page\n");
 			setup_events();
 			open_events();
 			addr = mmap(NULL, MEM_SIZE, PROT_READ | PROT_WRITE, MAP_FIXED | MAP_NORESERVE | MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-			if (addr != MAP_FAILED)
-			{
-				printf("Allocated successfully ~> %zu from %p to %p\n", MEM_SIZE, addr, addr);
-			}
-			else
+			if (addr == MAP_FAILED)
 			{
 				printf("Allocation of %zu failed using normal page size\n", MEM_SIZE);
 				exit(1);
 			}
+			printf("Allocated successfully ~> %zu from %p to %p\n", MEM_SIZE, addr, addr);
 			int check_THP = madvise(addr, MEM_SIZE, MADV_HUGEPAGE);
 			if(check_THP != 0)
 			{
 				printf("madvise failed to set MADV_HUGEPAGE the allocated region for THP\n");
 				exit(1);
 			}
-			else
-			{
-				printf("madvise successfully set MADV_HUGEPAGE for allocated region for THP\n");
-			}
+			printf("madvise successfully set MADV_HUGEPAGE for allocated region for THP\n");
 			prepare_events();
-			// Touching the memory randomly
+			/* Touching the memory randomly */
 			for(int i=0; i<MEM_SIZE; i+=HPAGE_SIZE)
 			{
-				addr[i+(HPAGE_SIZE/2)] = 1;
+				random_num = rand() % HPAGE_SIZE;
+				addr[i+random_num] = 1;
 			}
 			display_events();
 			close_events();
